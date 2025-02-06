@@ -1,0 +1,32 @@
+[project]
+name = "realtime-stt"
+version = "0.1.0"
+description = ""
+authors = [
+    { name = "None" }
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi (>=0.115.8,<0.116.0)",
+    "mypy (>=1.15.0,<2.0.0)",
+    "uvicorn (>=0.34.0,<0.35.0)",
+    "python-dotenv (>=1.0.1,<2.0.0)",
+    "openai (>=1.61.1,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.poetry]
+package-mode = false
+
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+namespace_packages = true
+exclude = "(^|/|\\\\)venv($|/|\\\\)"
