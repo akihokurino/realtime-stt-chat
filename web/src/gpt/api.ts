@@ -15,7 +15,9 @@ export const chatCompletionsAPI = async (
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(messages),
+            body: JSON.stringify({
+                messages
+            }),
         }
     );
 
@@ -26,8 +28,7 @@ export const chatCompletionsAPI = async (
     const reader = response.body.getReader();
 
     const processChunk = async ({
-                                    done,
-                                    value
+                                    done, value
                                 }: ReadableStreamReadResult<Uint8Array>): Promise<void> => {
         if (done) {
             finish();

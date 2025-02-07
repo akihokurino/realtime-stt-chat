@@ -16,14 +16,11 @@ function App() {
     const [inputText, setInputText] = useState("");
     const [isReplying, setIsReplying] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
-    const [isAudioMode, setIsAudioMode] = useState(false);
-    const [isReady, setIsReady] = useState(true);
     const [isSttWarmingUp, setIsSttWarmingUp] = useState(true);
 
     const isInitialized = useRef<boolean>(false);
     const sttRef = useRef<STT | null>(null);
     const messageUIRef = useRef<HTMLDivElement | null>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const initRecorder = async (stream: MediaStream) => {
         sttRef.current = new STT(
@@ -104,8 +101,7 @@ function App() {
                     }
                 },
                 () => {
-                    warmUpStt();
-                    startRecording();
+                    setIsReplying(false)
                 }
             );
         } catch (e) {
@@ -132,13 +128,11 @@ function App() {
     }
 
     const startRecording = async () => {
-        setIsAudioMode(true);
         setIsRecording(true);
         await sttRef.current?.start();
     };
 
     const stopRecording = async () => {
-        setIsAudioMode(false);
         setIsRecording(false);
         setRecordingMessage(null);
         await sttRef.current?.stop();
@@ -155,7 +149,7 @@ function App() {
             messages.length !== 0 &&
             messages[messages.length - 1].role === "user"
         ) {
-            progressiveReply();
+            progressiveReply().then();
         }
     }, [messages]);
 
@@ -173,121 +167,108 @@ function App() {
 
     return (
         <div className="bg-slate-900 w-full h-screen">
-            {(isReplying || isRecording) && (
+            {isReplying && (
                 <div
                     className="fixed flex justify-center items-center py-4 top-[50px] left-0 right-0 mx-auto w-48 rounded-xl bg-slate-900 mt-2 bg-opacity-50 z-20">
-                    {isReplying && (
-                        <>
-                            <div className="animate-spin h-8 w-8 bg-blue-300 rounded-xl"></div>
-                            <p className="ml-5 text-white text-xs">回答中...</p>
-                        </>
-                    )}
-                    {isRecording && (
-                        <>
-                            <div className="animate-spin h-8 w-8 bg-green-300 rounded-xl"></div>
-                            <p className="ml-5 text-white text-xs">録音中...</p>
-                        </>
-                    )}
+                    <div className="animate-spin h-8 w-8 bg-blue-300 rounded-xl"></div>
+                    <p className="ml-5 text-white text-xs">回答中...</p>
                 </div>
             )}
 
-            {isReady && (
-                <>
+            <div
+                style={{scrollbarWidth: "none", msOverflowStyle: "none"}}
+                className="relative overflow-y-scroll max-h-screen min-h-screen md:w-[700px] w-full mx-auto px-2 py-[50px] z-10"
+                ref={messageUIRef}
+            >
+                {messages.map((message, index) => (
                     <div
-                        style={{scrollbarWidth: "none", msOverflowStyle: "none"}}
-                        className="relative overflow-y-scroll max-h-screen min-h-screen md:w-[700px] w-full mx-auto px-2 py-[50px] z-10"
-                        ref={messageUIRef}
+                        key={index}
+                        className={`flex ${
+                            message.role === "user" ? "justify-end" : "justify-start"
+                        } my-2`}
                     >
-                        {messages.map((message, index) => (
-                            <div
-                                key={index}
-                                className={`flex ${
-                                    message.role === "user" ? "justify-end" : "justify-start"
-                                } my-2`}
-                            >
-                                <div
-                                    className={`max-w-xs px-4 py-2 rounded-lg text-sm bg-opacity-50 ${
-                                        message.role === "user"
-                                            ? "bg-blue-500 text-white"
-                                            : "bg-gray-300 text-black"
-                                    }`}
-                                >
-                                    {message.content}
-                                </div>
-                            </div>
-                        ))}
-                        {recordingMessage && (
-                            <div className="flex justify-end my-2">
-                                <div
-                                    className="max-w-xs px-4 py-2 rounded-lg text-sm bg-opacity-50 bg-blue-500 text-white">
-                                    {recordingMessage}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="fixed bottom-0 w-full bg-gray-100 border-t border-gray-200 py-2 z-10">
-                        <div className="max-w-2xl mx-auto px-4 flex items-center justify-between">
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    sendMessage(inputText);
-                                }}
-                                className="flex flex-grow"
-                            >
-                                <input
-                                    className="w-full px-2 py-1 border rounded-lg focus:outline-none placeholder:text-slate-400 text-sm placeholder:text-sm"
-                                    type="text"
-                                    placeholder="メッセージを入力してください"
-                                    value={inputText}
-                                    onChange={(e) => {
-                                        setInputText(e.target.value);
-                                    }}
-                                />
-
-                                <button
-                                    disabled={isReplying || isRecording}
-                                    className={`w-16 ml-2 px-3 py-1 text-white rounded-lg focus:outline-none text-xs ${
-                                        isReplying || isRecording
-                                            ? "bg-gray-300"
-                                            : "bg-blue-500"
-                                    }`}
-                                    onClick={() => {
-                                        sendMessage(inputText);
-                                    }}
-                                >
-                                    送信
-                                </button>
-
-                                {!isRecording ? (
-                                    <button
-                                        disabled={isReplying || isRecording || isSttWarmingUp}
-                                        className={`ml-2 px-3 py-1 text-white rounded-lg focus:outline-none ${
-                                            isReplying || isRecording || isSttWarmingUp
-                                                ? "bg-gray-300"
-                                                : "bg-green-500"
-                                        }`}
-                                        onClick={async () => {
-                                            await startRecording();
-                                        }}
-                                    >
-                                        <AiOutlineAudio/>
-                                    </button>
-                                ) : (
-                                    <button
-                                        className={`ml-2 px-3 py-1 text-white rounded-lg focus:outline-none bg-red-500`}
-                                        onClick={() => {
-                                            stopRecording();
-                                        }}
-                                    >
-                                        <AiOutlineAudioMuted/>
-                                    </button>
-                                )}
-                            </form>
+                        <div
+                            className={`max-w-xs px-4 py-2 rounded-lg text-sm bg-opacity-50 ${
+                                message.role === "user"
+                                    ? "bg-blue-500 text-white"
+                                    : "bg-gray-300 text-black"
+                            }`}
+                        >
+                            {message.content}
                         </div>
                     </div>
-                </>
-            )}
+                ))}
+                {recordingMessage && (
+                    <div className="flex justify-end my-2">
+                        <div
+                            className="max-w-xs px-4 py-2 rounded-lg text-sm bg-opacity-50 bg-blue-500 text-white">
+                            {recordingMessage}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="fixed bottom-0 w-full bg-gray-100 border-t border-gray-200 py-2 z-10">
+                <div className="max-w-2xl mx-auto px-4 flex items-center justify-between">
+                    <form
+                        onSubmit={async (e) => {
+                            e.preventDefault();
+                            await sendMessage(inputText);
+                        }}
+                        className="flex flex-grow"
+                    >
+                        <input
+                            className="w-full px-2 py-1 border rounded-lg focus:outline-none placeholder:text-slate-400 text-sm placeholder:text-sm"
+                            type="text"
+                            placeholder="メッセージを入力してください"
+                            value={inputText}
+                            onChange={(e) => {
+                                setInputText(e.target.value);
+                            }}
+                        />
+
+                        <button
+                            disabled={isReplying}
+                            className={`w-16 ml-2 px-3 py-1 text-white rounded-lg focus:outline-none text-xs ${
+                                isReplying
+                                    ? "bg-gray-300"
+                                    : "bg-blue-500"
+                            }`}
+                            onClick={async () => {
+                                await sendMessage(inputText);
+                            }}
+                        >
+                            送信
+                        </button>
+
+                        {!isRecording ? (
+                            <button
+                                disabled={isReplying || isRecording || isSttWarmingUp}
+                                className={`ml-2 px-3 py-1 text-white rounded-lg focus:outline-none ${
+                                    isReplying || isRecording || isSttWarmingUp
+                                        ? "bg-gray-300"
+                                        : "bg-green-500"
+                                }`}
+                                onClick={async () => {
+                                    await startRecording();
+                                    await warmUpStt();
+                                }}
+                            >
+                                <AiOutlineAudio/>
+                            </button>
+                        ) : (
+                            <button
+                                className={`ml-2 px-3 py-1 text-white rounded-lg focus:outline-none bg-red-500`}
+                                onClick={async () => {
+                                    await stopRecording();
+                                }}
+                            >
+                                <AiOutlineAudioMuted/>
+                            </button>
+                        )}
+                    </form>
+                </div>
+            </div>
         </div>
     );
 }
