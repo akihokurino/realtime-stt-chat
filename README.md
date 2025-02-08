@@ -1,13 +1,13 @@
-# リアルタイム音声認識API
+# Realtime STT Sample
 
-## サンプルリクエスト
+## Used, Dependency
 
-```shell
-curl -X POST http://localhost:8080/chat_completion \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "こんにちは。500文字で自己紹介をしてください。"}
-    ]
-  }'
-```
+- python3
+- fastapi
+- python-socketio
+- google-cloud-speech
+- react
+- socket.io-client
+- web audio api
+
+## Sequence

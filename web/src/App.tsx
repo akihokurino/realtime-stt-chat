@@ -30,9 +30,8 @@ function App() {
                 setRecordingMessage(transcript);
             },
             (transcript) => {
-                setIsRecording(false);
-                setIsSttWarmingUp(false);
                 sendMessage(transcript);
+                sttRef.current?.start();
             }
         )
     };
