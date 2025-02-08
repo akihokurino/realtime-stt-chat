@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+from asyncio import AbstractEventLoop
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from queue import Queue, Empty
 from threading import Timer
@@ -10,21 +13,18 @@ from typing import Any, Dict, Final, Generator, Optional
 import socketio
 from google.cloud import speech
 
-# Google Cloud STT APIキー
 STT_API_KEY: Optional[str] = os.getenv("STT_API_KEY")
 client: Final[speech.SpeechClient] = speech.SpeechClient(
     client_options={"api_key": STT_API_KEY}
 )
 
-# Socket.IO の設定（ASGIモード）
 sio: Final[socketio.AsyncServer] = socketio.AsyncServer(
     async_mode="asgi", cors_allowed_origins="*"
 )
 sio_app: Final[socketio.ASGIApp] = socketio.ASGIApp(sio, socketio_path="/ws/socket.io")
 
 
-# --- Buffer クラス（変更なし） ---
-class Buffer:
+class AudioBuffer:
     def __init__(self) -> None:
         self.queue: Queue[Optional[bytes]] = Queue()
         self.closed: bool = False
@@ -56,20 +56,18 @@ class Buffer:
         self.queue.put(None)
 
 
-# --- 接続ごとの状態を管理するデータクラス ---
 @dataclass
 class ConnectionState:
     sid: str
-    buffer: Buffer = field(default_factory=Buffer)
+    buffer: AudioBuffer = field(default_factory=AudioBuffer)
     transcript: str = ""
     timeout: Optional[Timer] = None
+    loop: Optional[AbstractEventLoop] = None
 
 
-# --- 各接続（sid）を管理するグローバル辞書 ---
 connections: Dict[str, ConnectionState] = {}
 
 
-# --- 共通処理: ストリーム停止 ---
 async def stop_stream(sid: str) -> None:
     connection: Optional[ConnectionState] = connections.pop(sid, None)
     if connection is None:
@@ -80,25 +78,29 @@ async def stop_stream(sid: str) -> None:
         connection.timeout = None
 
     connection.buffer.close()
-    print(f"Stopping stream for {sid}")
     try:
         await sio.disconnect(sid)
+        print(f"✅ Disconnect {sid}")
     except Exception as e:
-        print(f"Disconnect error for {sid}: {e}")
+        print(f"❌ Disconnect error for {sid}: {e}")
 
 
-# --- Socket.IO イベントハンドラ ---
+executor = ThreadPoolExecutor(max_workers=5)
+
+
 @sio.event  # type: ignore
 async def connect(sid: str, environ: Dict[str, Any]) -> None:
     print(f"✅ Client connected: {sid}")
-    # 新規接続の状態を辞書に登録
-    connections[sid] = ConnectionState(sid=sid)
-    # バックグラウンドで音声認識処理を開始
-    asyncio.create_task(process_audio_stream(sid))
+    connections[sid] = ConnectionState(sid=sid, loop=asyncio.get_running_loop())
+    # asyncio.create_task(process_audio_stream(sid))
+    # asyncio.create_task(asyncio.to_thread(process_audio_stream, sid))
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(executor, process_audio_stream, sid)
 
 
 @sio.event  # type: ignore
 async def mic(sid: str, data: bytes) -> None:
+    print(f"🎤 Audio data received: {sid}")
     connection: Optional[ConnectionState] = connections.get(sid)
     if connection is not None:
         connection.buffer.write(data)
@@ -106,18 +108,23 @@ async def mic(sid: str, data: bytes) -> None:
 
 @sio.event  # type: ignore
 async def stop(sid: str) -> None:
-    print(f"🛑 Stop requested: {sid}")
+    print(f"☑️ Stop requested: {sid}")
     await stop_stream(sid)
 
 
 @sio.event  # type: ignore
 async def disconnect(sid: str) -> None:
-    print(f"❌ Client disconnected: {sid}")
+    print(f"☑️ Client disconnected: {sid}")
     await stop_stream(sid)
 
 
-# --- バックグラウンドタスク: 音声認識処理 ---
 async def process_audio_stream(sid: str) -> None:
+    """
+    音声認識処理を行うバックグラウンドタスク
+    :param sid:
+    :return:
+    """
+    print(f"🔊 Start audio stream for {sid}")
     connection: Optional[ConnectionState] = connections.get(sid)
     if connection is None:
         return
@@ -136,15 +143,13 @@ async def process_audio_stream(sid: str) -> None:
         speech.StreamingRecognizeRequest(audio_content=chunk) for chunk in generator
     )
 
-    print(f"Start transcript for {sid}")
     try:
-        # ブロッキングな streaming_recognize を別スレッドで実行
-        responses = await asyncio.to_thread(
-            run_streaming_recognize, streaming_config, requests
+        responses = client.streaming_recognize(
+            config=streaming_config, requests=requests
         )
         for response in responses:
             if response.error.code != 0:
-                print("Error occurred:", response.error)
+                logging.error(f"Error occurred for {sid}: {response.error.message}")
                 await stop_stream(sid)
                 return
 
@@ -156,16 +161,16 @@ async def process_audio_stream(sid: str) -> None:
                 continue
 
             connection.transcript = result.alternatives[0].transcript
-            print(f"Transcript for {sid}: {connection.transcript}")
+            print(f"✅ Transcript for {sid}: {connection.transcript}")
             await sio.emit("transcript", connection.transcript, to=sid)
 
             # タイマーの再設定（1秒間音声が来なければストリームを停止）
             if connection.timeout is not None:
                 connection.timeout.cancel()
-            loop = asyncio.get_running_loop()
+
             connection.timeout = Timer(
                 1,
-                lambda: loop.call_soon_threadsafe(
+                lambda: connection.loop.call_soon_threadsafe(
                     asyncio.create_task, stop_stream(sid)
                 ),
             )
@@ -174,14 +179,8 @@ async def process_audio_stream(sid: str) -> None:
         # responses のループが終了した場合
         if connection.timeout is None:
             await stop_stream(sid)
-        print(f"Finish transcript for {sid}")
+
+        print(f"☑️ Finish transcript for {sid}")
     except Exception as e:
-        print(f"Exception occurred for {sid}: {e}")
+        logging.error(f"Exception occurred for {sid}: {e}")
         await stop_stream(sid)
-
-
-def run_streaming_recognize(
-    config: speech.StreamingRecognitionConfig,
-    requests: Generator[speech.StreamingRecognizeRequest, None, None],
-) -> Any:
-    return client.streaming_recognize(config=config, requests=requests)  # type: ignore

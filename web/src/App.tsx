@@ -31,6 +31,7 @@ function App() {
             },
             (transcript) => {
                 setIsRecording(false);
+                setIsSttWarmingUp(false);
                 sendMessage(transcript);
             }
         )
@@ -125,6 +126,7 @@ function App() {
 
     const stopRecording = async () => {
         setIsRecording(false);
+        setIsSttWarmingUp(false);
         setRecordingMessage(null);
         await sttRef.current?.stop();
     };
@@ -241,7 +243,6 @@ function App() {
                                 }`}
                                 onClick={async () => {
                                     await startRecording();
-                                    // await warmUpStt();
                                 }}
                             >
                                 <AiOutlineAudio/>

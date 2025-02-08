@@ -26,7 +26,6 @@ export class STT {
                     case "data":
                         const l16 = self.floatTo16BitPCM(event.data[0]);
                         console.log("stt:data");
-                        // console.log("onWrite", l16);
                         self.socket?.emit("mic", l16);
                         break;
                     case "punctuation":
@@ -72,7 +71,7 @@ export class STT {
                 });
 
                 this.socket.on("disconnect", async () => {
-                    console.log("❌ Disconnected from server!");
+                    console.log("✅ Disconnected from server!");
                     await this.doFinish();
                 });
             })
@@ -88,12 +87,10 @@ export class STT {
     }
 
     async stop() {
-        console.log("stop");
         this.socket?.emit("stop");
     }
 
     private async doFinish() {
-        console.log("doFinish");
         await this.recorder.stop();
         this.socket?.disconnect();
         this.socket = null;
