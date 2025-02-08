@@ -16,7 +16,7 @@ function App() {
     const [inputText, setInputText] = useState("");
     const [isReplying, setIsReplying] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
-    const [isSttWarmingUp, setIsSttWarmingUp] = useState(true);
+    const [isSttWarmingUp, setIsSttWarmingUp] = useState(false);
 
     const isInitialized = useRef<boolean>(false);
     const sttRef = useRef<STT | null>(null);
@@ -34,12 +34,6 @@ function App() {
                 sendMessage(transcript);
             }
         )
-
-        await sttRef.current?.warmup();
-        setIsSttWarmingUp(true);
-        setTimeout(() => {
-            setIsSttWarmingUp(false);
-        }, 3000);
     };
 
     const sendMessage = async (text: string) => {
@@ -123,12 +117,9 @@ function App() {
         }
     };
 
-    const warmUpStt = async () => {
-        await sttRef.current?.warmup();
-    }
-
     const startRecording = async () => {
         setIsRecording(true);
+        setIsSttWarmingUp(true);
         await sttRef.current?.start();
     };
 
@@ -136,7 +127,6 @@ function App() {
         setIsRecording(false);
         setRecordingMessage(null);
         await sttRef.current?.stop();
-        await sttRef.current?.warmup();
     };
 
     useEffect(() => {
@@ -251,7 +241,7 @@ function App() {
                                 }`}
                                 onClick={async () => {
                                     await startRecording();
-                                    await warmUpStt();
+                                    // await warmUpStt();
                                 }}
                             >
                                 <AiOutlineAudio/>

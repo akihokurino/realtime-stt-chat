@@ -1,8 +1,6 @@
 import Recorder from "@/audio/recorder";
 import {io, Socket} from "socket.io-client";
 
-const API_KEY = process.env.REACT_APP_API_KEY;
-
 export class STT {
     recorder: Recorder;
     transcript: string = "";
@@ -49,27 +47,32 @@ export class STT {
         }
 
         await fetch("http://localhost:8080/stt", {
-            method: "POST", headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-            }
+            method: "POST", headers: {}
         })
             .then(async () => {
                 if (!this.socket) {
-                    console.log("create socket");
-                    this.socket = io("http://localhost:8080", {autoConnect: true, path: "/stt"});
+                    this.socket = io("http://localhost:8080", {
+                        autoConnect: true,
+                        path: "/ws/socket.io",
+                        transports: ["websocket", "polling"]
+                    });
                 }
 
                 this.socket.on("connect", () => {
-                    console.log("connect");
+                    console.log("✅ Connected to server!");
+                });
+                this.socket.on("connect_error", (error) => {
+                    console.error("Connection failed:", error);
                 });
 
                 this.socket.on("transcript", (transcript: string) => {
                     this.transcript = transcript;
+                    console.log(`✅ transcript: ${transcript}`);
                     this.onUpdated(transcript);
                 });
 
                 this.socket.on("disconnect", async () => {
-                    console.log("disconnect");
+                    console.log("❌ Disconnected from server!");
                     await this.doFinish();
                 });
             })

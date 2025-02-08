@@ -12,7 +12,9 @@ dependencies = [
     "mypy (>=1.15.0,<2.0.0)",
     "uvicorn (>=0.34.0,<0.35.0)",
     "python-dotenv (>=1.0.1,<2.0.0)",
-    "openai (>=1.61.1,<2.0.0)"
+    "openai (>=1.61.1,<2.0.0)",
+    "python-socketio (>=5.12.1,<6.0.0)",
+    "google-cloud-speech (==2.27.0)",
 ]
 
 
@@ -30,3 +32,6 @@ python_version = "3.13"
 strict = true
 namespace_packages = true
 exclude = "(^|/|\\\\)venv($|/|\\\\)"
+[[tool.mypy.overrides]]
+module = "socketio.*"
+ignore_missing_imports = true

@@ -16,13 +16,15 @@ from openai.types.chat.chat_completion_user_message_param import (
 )
 from pydantic import BaseModel
 
+from stt import sio_app
+
 load_dotenv()
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
+    api_key=OPENAI_API_KEY,
 )
-
 
 app: Final[FastAPI] = FastAPI(
     docs_url="/docs",
@@ -37,6 +39,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+main_app = FastAPI()
+main_app.mount("/ws", sio_app)
+main_app.mount("/", app)
+
 
 @final
 class Message(BaseModel):
@@ -47,6 +53,11 @@ class Message(BaseModel):
 @final
 class _ChatCompletionPayload(BaseModel):
     messages: list[Message]
+
+
+@final
+class _Empty(BaseModel):
+    pass
 
 
 async def _chat_completion_stream(
@@ -87,5 +98,10 @@ async def _chat_completion(
     return StreamingResponse(_chat_completion_stream(payload), media_type="text/plain")
 
 
+@app.post("/stt")
+async def handshake() -> _Empty:
+    return _Empty()
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="debug")
+    uvicorn.run(main_app, host="0.0.0.0", port=8080, log_level="debug")

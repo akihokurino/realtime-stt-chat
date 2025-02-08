@@ -13,3 +13,7 @@ types:
 
 run-server:
 	source venv/bin/activate && python -m server
+
+gcloud-login:
+	gcloud --quiet config set project akiho-playground-450111
+	gcloud auth application-default login
