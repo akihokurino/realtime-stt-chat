@@ -1,4 +1,4 @@
-# Realtime STT Sample
+# Realtime STT Chatbot
 
 ## Used, Dependency
 
